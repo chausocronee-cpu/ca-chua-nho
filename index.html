@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Cà Chua Nhỏ 🍅</title>
+<style>
+html,body{margin:0;padding:0;width:100%;height:100%;background:#12030f;overflow:hidden;user-select:none;-webkit-user-select:none;touch-action:none}
+canvas{display:block}
+.msg{position:absolute;left:0;right:0;text-align:center;font-family:system-ui,sans-serif;pointer-events:none;transition:opacity .6s;padding:0 16px;box-sizing:border-box}
+#hint{top:50%;transform:translateY(-50%);font-size:20px;color:#ffb3c7;text-shadow:0 0 10px #ff3355,0 0 22px #ff0066}
+#love{bottom:calc(9% + env(safe-area-inset-bottom,0px));font-size:26px;font-weight:600;color:#fff;opacity:0;text-shadow:0 0 8px #ff4d7d,0 0 20px #ff0055,0 0 36px #ffb300}
+</style>
+</head>
+<body>
+<div id="hint" class="msg">Chạm để giữ màn hình nhé 🍅<br>Có điều bất ngờ</div>
+<div id="love" class="msg"></div>
+<canvas id="canvas"></canvas>
+<script>
+// ✏️ SỬA LỜI NHẮN Ở ĐÂY
+const MSG_HOLD = "Cà chua nhỏ 🍅";
+
+const canvas=document.getElementById('canvas'),ctx=canvas.getContext('2d');
+const hint=document.getElementById('hint'),love=document.getElementById('love');
+let width=canvas.width=innerWidth,height=canvas.height=innerHeight;
+addEventListener('resize',()=>{width=canvas.width=innerWidth;height=canvas.height=innerHeight});
+
+function sprite(color,heart){
+  const s=document.createElement('canvas');s.width=s.height=32;
+  const c=s.getContext('2d');
+  if(heart){
+    c.shadowColor=color;c.shadowBlur=6;c.fillStyle=color;
+    c.beginPath();c.moveTo(16,27);
+    c.bezierCurveTo(2,17,4,5,16,10);
+    c.bezierCurveTo(28,5,30,17,16,27);c.fill();
+  }else{
+    const g=c.createRadialGradient(16,16,0,16,16,16);
+    g.addColorStop(0,'#fff');g.addColorStop(.3,color);g.addColorStop(1,'rgba(0,0,0,0)');
+    c.fillStyle=g;c.beginPath();c.arc(16,16,16,0,7);c.fill();
+  }
+  return s;
+}
+const bodyCols=['#ff2d2d','#ff3b5c','#ff1f4b','#ff5a36','#ff2a7a'];
+const goldCols=['#ffd166','#fff0a8','#ffffff'];
+const stemCols=['#39ff7a','#a6ff3d','#00ffb3'];
+const bodySp=bodyCols.map(c=>sprite(c,false));
+const heartSp=['#ff4d8d','#ff2d55','#ff8fb1','#ff6b6b'].map(c=>sprite(c,false));
+const goldSp=goldCols.map(c=>sprite(c,false));
+const stemSp=stemCols.map(c=>sprite(c,false));
+const pick=a=>a[Math.random()*a.length|0];
+
+function target(){
+  const r=Math.random();
+  if(r<.18){ // cuống + lá
+    const n=5,p=Math.random()*n|0,a=p/n*Math.PI*2+Math.random()*.2-.1,l=Math.random()*60+20;
+    return{x:Math.cos(a)*l,y:-108+Math.random()*15-l*.3,z:Math.sin(a)*l,k:'stem'};
+  }
+  const u=Math.random()*Math.PI*2,v=Math.random()*Math.PI,b=1+.08*Math.sin(6*u);
+  const x=120*b*Math.sin(v)*Math.cos(u),y=95*b*Math.cos(v)+10,z=120*b*Math.sin(v)*Math.sin(u);
+  return{x,y,z,k:r<.42?'heart':r<.52?'gold':'body'};
+}
+
+let particles=[],holding=false,mx=width/2,my=height/2,ang=0,t=0,holdT=0;
+class P{
+  constructor(){
+    this.x=(Math.random()-.5)*width;this.y=(Math.random()-.5)*height;this.z=(Math.random()-.5)*500;
+    this.vx=this.vy=this.vz=0;this.tg=target();
+    this.sp=this.tg.k=='stem'?pick(stemSp):this.tg.k=='heart'?pick(heartSp):this.tg.k=='gold'?pick(goldSp):pick(bodySp);
+    this.big=this.tg.k=='heart'?.8:1;
+    this.life=1;this.decay=0;this.exp=false;this.tw=Math.random()*6;
+  }
+  update(){
+    if(holding){
+      const beat=1+.07*Math.pow(Math.max(0,Math.sin(t*4)),3);
+      const c=Math.cos(ang),s=Math.sin(ang);
+      const rx=(this.tg.x*c-this.tg.z*s)*beat,ry=this.tg.y*beat,rz=(this.tg.x*s+this.tg.z*c)*beat;
+      this.vx+=(mx-width/2+rx-this.x)*.03;this.vy+=(my-height/2+ry-this.y)*.03;this.vz+=(rz-this.z)*.03;
+      this.vx*=.85;this.vy*=.85;this.vz*=.85;
+    }else if(this.exp){
+      this.vx*=.965;this.vy*=.965;this.vz*=.965;this.vy-=.02;this.life-=this.decay;
+    }
+    this.x+=this.vx;this.y+=this.vy;this.z+=this.vz;
+  }
+  draw(){
+    if(this.life<=0)return;
+    const pr=350/(350+this.z+200);if(pr<=0)return;
+    const tw=.75+.25*Math.sin(t*6+this.tw);
+    const sz=Math.max(1,14*pr*this.big*(this.tg.k=='gold'?tw*1.2:1));
+    ctx.globalAlpha=Math.max(0,this.life);
+    ctx.drawImage(this.sp,width/2+this.x*pr-sz/2,height/2+this.y*pr-sz/2,sz,sz);
+  }
+}
+for(let i=0;i<1800;i++)particles.push(new P());
+
+// trái tim nhỏ bay lơ lửng nền
+const amb=[];for(let i=0;i<28;i++)amb.push({x:Math.random(),y:Math.random(),s:Math.random()*4+3,v:Math.random()*.4+.15,p:Math.random()*6,sp:pick(heartSp)});
+
+function animate(){
+  t+=.016;
+  ctx.globalCompositeOperation='source-over';
+  ctx.fillStyle='rgba(18,3,15,.26)';ctx.fillRect(0,0,width,height);
+  ctx.globalCompositeOperation='lighter';
+  amb.forEach(a=>{
+    a.y-=a.v/height*2;if(a.y<-.05){a.y=1.05;a.x=Math.random()}
+    ctx.globalAlpha=.35;
+    ctx.drawImage(a.sp,a.x*width+Math.sin(t+a.p)*12,a.y*height,a.s,a.s);
+  });
+  if(holding){ang+=.015;holdT+=.016;if(holdT>1.3&&love.style.opacity!=1){love.textContent=MSG_HOLD;love.style.opacity=1}}
+  particles.sort((a,b)=>b.z-a.z);
+  particles.forEach(p=>{p.update();p.draw()});
+  requestAnimationFrame(animate);
+}
+let hideT;
+function start(x,y){
+  holding=true;mx=x;my=y;holdT=0;clearTimeout(hideT);
+  hint.style.opacity=0;love.style.opacity=0;
+  particles.forEach(p=>{p.exp=false;p.life=1});
+}
+function end(){
+  if(!holding)return;holding=false;
+  particles.forEach(p=>{
+    p.exp=true;const th=Math.random()*6.283,ph=Math.random()*Math.PI,sp=Math.random()*16+6;
+    p.vx=Math.sin(ph)*Math.cos(th)*sp;p.vy=Math.cos(ph)*sp;p.vz=Math.sin(ph)*Math.sin(th)*sp;
+    p.decay=Math.random()*.015+.006;
+  });
+  love.style.opacity=0;
+  hideT=setTimeout(()=>{hint.innerHTML="Chạm để giữ màn hình nhé 🍅<br>Có điều bất ngờ";hint.style.opacity=1},3200);
+}
+addEventListener('mousedown',e=>start(e.clientX,e.clientY));
+addEventListener('mousemove',e=>{if(holding){mx=e.clientX;my=e.clientY}});
+addEventListener('mouseup',end);
+addEventListener('touchstart',e=>start(e.touches[0].clientX,e.touches[0].clientY));
+addEventListener('touchmove',e=>{if(holding){mx=e.touches[0].clientX;my=e.touches[0].clientY}});
+addEventListener('touchend',end);
+animate();
+</script>
+</body>
+</html>
